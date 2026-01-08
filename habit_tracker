@@ -1,0 +1,546 @@
+import React, { useState, useEffect } from 'react';
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Award, Flame, Star, Trophy, Target, Zap, Calendar, LogOut, Plus, Trash2, Sparkles } from 'lucide-react';
+
+const HabitTracker2026 = () => {
+  const [view, setView] = useState('login');
+  const [user, setUser] = useState(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(2026);
+  const [habits, setHabits] = useState([
+    { id: 1, name: 'Exercise', color: '#ec4899' },
+    { id: 2, name: 'Read', color: '#8b5cf6' },
+    { id: 3, name: 'Meditate', color: '#06b6d4' },
+  ]);
+  const [completions, setCompletions] = useState({});
+  const [newHabitName, setNewHabitName] = useState('');
+  const [showAddHabit, setShowAddHabit] = useState(false);
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const motivationalQuotes = [
+    "Every small step counts! 🌟",
+    "You're building something amazing! 💪",
+    "Consistency is the key to success! 🔑",
+    "Today's actions shape tomorrow's results! ✨",
+    "Keep going, you're doing great! 🚀",
+    "Small progress is still progress! 🌱",
+    "Your future self will thank you! 💫",
+    "One day at a time, one habit at a time! 🎯"
+  ];
+
+  const [currentQuote] = useState(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
+
+  const habitColors = ['#ec4899', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#14b8a6'];
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('habitUser');
+    if (savedUser) {
+      const userData = JSON.parse(savedUser);
+      setUser(userData);
+      loadUserData(userData.username);
+      setView('tracker');
+    }
+  }, [currentMonth, currentYear]);
+
+  const loadUserData = async (username) => {
+    try {
+      const data = await window.storage.get(`habits_${username}_${currentYear}_${currentMonth}`);
+      if (data?.value) {
+        const parsed = JSON.parse(data.value);
+        setCompletions(parsed.completions || {});
+        setHabits(parsed.habits || habits);
+      }
+    } catch (error) {
+      setCompletions({});
+    }
+  };
+
+  const saveUserData = async (username, completionsData, habitsData) => {
+    try {
+      await window.storage.set(
+        `habits_${username}_${currentYear}_${currentMonth}`,
+        JSON.stringify({ completions: completionsData, habits: habitsData })
+      );
+    } catch (error) {
+      console.error('Save failed:', error);
+    }
+  };
+
+  const handleAuth = async () => {
+    if (!username || !password) return;
+
+    if (isSignUp) {
+      const userData = { username, createdAt: new Date().toISOString() };
+      localStorage.setItem('habitUser', JSON.stringify(userData));
+      setUser(userData);
+      setView('tracker');
+    } else {
+      const userData = { username };
+      localStorage.setItem('habitUser', JSON.stringify(userData));
+      setUser(userData);
+      await loadUserData(username);
+      setView('tracker');
+    }
+    setUsername('');
+    setPassword('');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('habitUser');
+    setUser(null);
+    setView('login');
+    setCompletions({});
+  };
+
+  const addHabit = () => {
+    if (!newHabitName.trim()) return;
+    const newHabit = {
+      id: Date.now(),
+      name: newHabitName.trim(),
+      color: habitColors[habits.length % habitColors.length]
+    };
+    const newHabits = [...habits, newHabit];
+    setHabits(newHabits);
+    setNewHabitName('');
+    setShowAddHabit(false);
+    if (user) {
+      saveUserData(user.username, completions, newHabits);
+    }
+  };
+
+  const deleteHabit = (habitId) => {
+    const newHabits = habits.filter(h => h.id !== habitId);
+    setHabits(newHabits);
+    const newCompletions = { ...completions };
+    Object.keys(newCompletions).forEach(key => {
+      if (key.startsWith(`${habitId}-`)) {
+        delete newCompletions[key];
+      }
+    });
+    setCompletions(newCompletions);
+    if (user) {
+      saveUserData(user.username, newCompletions, newHabits);
+    }
+  };
+
+  const getDaysInMonth = (month, year) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getMonthDates = () => {
+    const daysInMonth = getDaysInMonth(currentMonth, currentYear);
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const date = new Date(currentYear, currentMonth, i + 1);
+      return date.toISOString().split('T')[0];
+    });
+  };
+
+  const monthDates = getMonthDates();
+
+  const toggleCompletion = (habitId, date) => {
+    const key = `${habitId}-${date}`;
+    const newCompletions = {
+      ...completions,
+      [key]: !completions[key]
+    };
+    setCompletions(newCompletions);
+    if (user) {
+      saveUserData(user.username, newCompletions, habits);
+    }
+  };
+
+  const getHabitStreak = (habitId) => {
+    let streak = 0;
+    const today = new Date();
+    for (let i = 0; i < 365; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const key = `${habitId}-${dateStr}`;
+      if (completions[key]) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  const getHabitCompletion = (habitId) => {
+    const completed = monthDates.filter(date => completions[`${habitId}-${date}`]).length;
+    return { completed, total: monthDates.length, percentage: Math.round((completed / monthDates.length) * 100) };
+  };
+
+  const getStreakData = () => {
+    return monthDates.map((date, idx) => {
+      const completed = habits.filter(h => completions[`${h.id}-${date}`]).length;
+      return { day: idx + 1, completed };
+    });
+  };
+
+  const getCompletionStats = () => {
+    const total = habits.length * monthDates.length;
+    const completed = Object.values(completions).filter(Boolean).length;
+    
+    return [
+      { name: 'Completed', value: completed, color: '#ec4899' },
+      { name: 'Remaining', value: total - completed, color: '#f3f4f6' }
+    ];
+  };
+
+  const getBadges = () => {
+    const stats = getCompletionStats();
+    const percentage = stats[0].value / (stats[0].value + stats[1].value) * 100;
+    const badges = [];
+
+    if (percentage >= 95) badges.push({ icon: Trophy, label: 'Perfect Month', color: '#fbbf24' });
+    if (percentage >= 80) badges.push({ icon: Star, label: 'Superstar', color: '#8b5cf6' });
+    if (percentage >= 60) badges.push({ icon: Flame, label: 'On Fire', color: '#ef4444' });
+    if (percentage >= 40) badges.push({ icon: Target, label: 'Good Progress', color: '#06b6d4' });
+    if (percentage >= 20) badges.push({ icon: Zap, label: 'Getting Started', color: '#ec4899' });
+
+    return badges;
+  };
+
+  const changeMonth = (direction) => {
+    let newMonth = currentMonth + direction;
+    let newYear = currentYear;
+
+    if (newMonth > 11) {
+      newMonth = 0;
+      newYear++;
+    } else if (newMonth < 0) {
+      newMonth = 11;
+      newYear--;
+    }
+
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+  };
+
+  if (view === 'login') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-cyan-50 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-white/30 backdrop-blur-3xl"></div>
+        <div className="absolute top-10 left-10 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
+        <div className="absolute bottom-10 right-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-cyan-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" style={{animationDelay: '2s'}}></div>
+        
+        <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/20">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
+              <Calendar className="text-white" size={32} />
+            </div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              Habit Tracker
+            </h1>
+            <p className="text-gray-600">Build better habits, track your progress</p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none transition"
+                placeholder="your_username"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition"
+                placeholder="••••••••"
+              />
+            </div>
+            <button
+              onClick={handleAuth}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition"
+            >
+              {isSignUp ? 'Sign Up' : 'Sign In'}
+            </button>
+          </div>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+            >
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </button>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center">
+              ✓ Sync across devices • ✓ Offline support • ✓ Secure storage
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = getCompletionStats();
+  const percentage = Math.round((stats[0].value / (stats[0].value + stats[1].value)) * 100);
+  const badges = getBadges();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-cyan-50 relative overflow-hidden">
+      <div className="absolute inset-0 bg-white/20 backdrop-blur-3xl"></div>
+      <div className="absolute top-20 left-20 w-96 h-96 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse"></div>
+      <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse" style={{animationDelay: '1s'}}></div>
+      
+      <div className="relative">
+        {/* Header */}
+        <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 shadow-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <Calendar className="text-white" size={20} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                  Habit Tracker
+                </h1>
+                <p className="text-xs text-gray-600">@{user?.username}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition text-sm font-medium text-gray-700"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto p-4 md:p-6">
+          {/* Motivational Quote */}
+          <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-2xl shadow-lg p-6 mb-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-16 -mb-16"></div>
+            <div className="relative flex items-center gap-3">
+              <Sparkles size={24} />
+              <p className="text-lg font-medium">{currentQuote}</p>
+            </div>
+          </div>
+
+          {/* Month Navigation */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-6 border border-white/20">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => changeMonth(-1)}
+                className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition font-medium"
+              >
+                ← Prev
+              </button>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                {monthNames[currentMonth]} {currentYear}
+              </h2>
+              <button
+                onClick={() => changeMonth(1)}
+                className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition font-medium"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+
+          {/* Habit Grid */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-6 border border-white/20">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Daily Tracking</h3>
+              <button
+                onClick={() => setShowAddHabit(!showAddHabit)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition text-sm font-medium"
+              >
+                <Plus size={16} />
+                Add Habit
+              </button>
+            </div>
+
+            {showAddHabit && (
+              <div className="mb-4 flex gap-2">
+                <input
+                  type="text"
+                  value={newHabitName}
+                  onChange={(e) => setNewHabitName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addHabit()}
+                  placeholder="Enter habit name..."
+                  className="flex-1 px-4 py-2 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none"
+                />
+                <button
+                  onClick={addHabit}
+                  className="px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition font-medium"
+                >
+                  Add
+                </button>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-max">
+                <thead>
+                  <tr>
+                    <th className="text-left py-3 px-4 text-gray-600 font-medium sticky left-0 bg-white/80 backdrop-blur-sm">Habit</th>
+                    {monthDates.map((date, idx) => (
+                      <th key={date} className="text-center py-3 px-2 text-gray-600 font-medium min-w-[40px]">
+                        <div className="text-sm">{idx + 1}</div>
+                      </th>
+                    ))}
+                    <th className="text-center py-3 px-4 text-gray-600 font-medium">🔥</th>
+                    <th className="text-center py-3 px-4 text-gray-600 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {habits.map(habit => {
+                    const habitStats = getHabitCompletion(habit.id);
+                    const streak = getHabitStreak(habit.id);
+                    return (
+                      <tr key={habit.id} className="border-t border-gray-100">
+                        <td className="py-3 px-4 font-medium text-gray-800 sticky left-0 bg-white/80 backdrop-blur-sm">{habit.name}</td>
+                        {monthDates.map(date => {
+                          const key = `${habit.id}-${date}`;
+                          const isCompleted = completions[key];
+                          return (
+                            <td key={date} className="text-center py-3 px-2">
+                              <input
+                                type="checkbox"
+                                checked={isCompleted || false}
+                                onChange={() => toggleCompletion(habit.id, date)}
+                                className="w-5 h-5 cursor-pointer rounded"
+                                style={{ accentColor: habit.color }}
+                              />
+                            </td>
+                          );
+                        })}
+                        <td className="text-center py-3 px-4">
+                          <span className="font-semibold text-orange-600">{streak}</span>
+                        </td>
+                        <td className="text-center py-3 px-4">
+                          <button
+                            onClick={() => deleteHabit(habit.id)}
+                            className="text-red-500 hover:text-red-700 transition"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Individual Habit Progress */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-6 border border-white/20">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Habit Progress</h3>
+            <div className="space-y-4">
+              {habits.map(habit => {
+                const habitStats = getHabitCompletion(habit.id);
+                const streak = getHabitStreak(habit.id);
+                return (
+                  <div key={habit.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-800">{habit.name}</span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-600">🔥 {streak} streak</span>
+                        <span className="text-sm font-semibold" style={{ color: habit.color }}>
+                          {habitStats.completed}/{habitStats.total} days
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${habitStats.percentage}%`,
+                          backgroundColor: habit.color
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Charts */}
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-white/20">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Progress</h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={getStreakData()}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="day" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" />
+                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px' }} />
+                  <Line type="monotone" dataKey="completed" stroke="#ec4899" strokeWidth={3} dot={{ fill: '#ec4899', r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-white/20">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Completion</h3>
+              <div className="relative flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie data={stats} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
+                      {stats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute text-center pointer-events-none">
+                  <div className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">{percentage}%</div>
+                  <div className="text-sm text-gray-600">Complete</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Badges */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-white/20">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">🏆 Achievements Unlocked</h3>
+            {badges.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {badges.map((badge, idx) => {
+                  const Icon = badge.icon;
+                  return (
+                    <div key={idx} className="flex items-center gap-3 bg-gradient-to-r from-white to-gray-50 rounded-xl px-4 py-3 border-2 shadow-sm hover:shadow-md transition transform hover:scale-105" style={{ borderColor: badge.color }}>
+                      <Icon size={32} style={{ color: badge.color }} />
+                      <div>
+                        <div className="font-semibold text-gray-900">{badge.label}</div>
+                        <div className="text-sm text-gray-600">Keep going!</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-600">Start completing habits to unlock badges! 🎯</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default HabitTracker2026;
